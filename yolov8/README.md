@@ -49,69 +49,6 @@ python gen_wts.py -w VisDrone_train_yolov8x_p2_bs1_epochs_100_imgsz_1280_last.pt
 
 2. build tensorrtx/yolov8 and run
 
-### Detection
-```
-cd {tensorrtx}/yolov8/
-// update kNumClass in config.h if your model is trained on custom dataset
-mkdir build
-cd build
-cp {ultralytics}/ultralytics/yolov8.wts {tensorrtx}/yolov8/build
-cmake ..
-make
-sudo ./yolov8_det -s [.wts] [.engine] [n/s/m/l/x/n2/s2/m2/l2/x2/n6/s6/m6/l6/x6]  // serialize model to plan file
-sudo ./yolov8_det -d [.engine] [image folder]  [c/g] // deserialize and run inference, the images in [image folder] will be processed.
-
-// For example yolov8n
-sudo ./yolov8_det -s yolov8n.wts yolov8.engine n
-sudo ./yolov8_det -d yolov8n.engine ../images c //cpu postprocess
-sudo ./yolov8_det -d yolov8n.engine ../images g //gpu postprocess
-
-
-// For p2 model:
-// change the  "const static int kNumClass" in config.h to 10;
-sudo ./yolov8_det -s VisDrone_train_yolov8x_p2_bs1_epochs_100_imgsz_1280_last.wts VisDrone_train_yolov8x_p2_bs1_epochs_100_imgsz_1280_last.engine x2
-wget https://github.com/lindsayshuo/yolov8-p2/releases/download/VisDrone_train_yolov8x_p2_bs1_epochs_100_imgsz_1280_last/0000008_01999_d_0000040.jpg
-cp -r 0000008_01999_d_0000040.jpg ../images
-sudo ./yolov8_det -d VisDrone_train_yolov8x_p2_bs1_epochs_100_imgsz_1280_last.engine ../images c //cpu postprocess
-sudo ./yolov8_det -d VisDrone_train_yolov8x_p2_bs1_epochs_100_imgsz_1280_last.engine ../images g //gpu postprocess
-```
-
-### Instance Segmentation
-```
-# Build and serialize TensorRT engine
-./yolov8_seg -s yolov8s-seg.wts yolov8s-seg.engine s
-
-# Download the labels file
-wget -O coco.txt https://raw.githubusercontent.com/amikelive/coco-labels/master/coco-labels-2014_2017.txt
-
-# Run inference with labels file
-./yolov8_seg -d yolov8s-seg.engine ../images c coco.txt
-```
-
-### Classification
-```
-cd {tensorrtx}/yolov8/
-// Download inference images
-wget  https://github.com/lindsayshuo/infer_pic/blob/main/1709970363.6990473rescls.jpg
-mkdir samples
-cp -r  1709970363.6990473rescls.jpg samples
-// Download ImageNet labels
-wget https://github.com/joannzhang00/ImageNet-dataset-classes-labels/blob/main/imagenet_classes.txt
-
-// update kClsNumClass in config.h if your model is trained on custom dataset
-mkdir build
-cd build
-cp {ultralytics}/ultralytics/yolov8n-cls.wts {tensorrtx}/yolov8/build
-cmake ..
-make
-sudo ./yolov8_cls -s [.wts] [.engine] [n/s/m/l/x]  // serialize model to plan file
-sudo ./yolov8_cls -d [.engine] [image folder]  // deserialize and run inference, the images in [image folder] will be processed.
-
-// For example yolov8n
-sudo ./yolov8_cls -s yolov8n-cls.wts yolov8-cls.engine n
-sudo ./yolov8_cls -d yolov8n-cls.engine ../samples
-```
-
 
 ### Pose Estimation
 ```
@@ -129,18 +66,6 @@ sudo ./yolov8_pose -d [.engine] [image folder]  [c/g] // deserialize and run inf
 sudo ./yolov8_pose -s yolov8n-pose.wts yolov8n-pose.engine n
 sudo ./yolov8_pose -d yolov8n-pose.engine ../images c //cpu postprocess
 sudo ./yolov8_pose -d yolov8n-pose.engine ../images g //gpu postprocess
-```
-
-
-4. optional, load and run the tensorrt model in python
-
-```
-// install python-tensorrt, pycuda, etc.
-// ensure the yolov8n.engine and libmyplugins.so have been built
-python yolov8_det_trt.py  # Detection
-python yolov8_seg_trt.py  # Segmentation
-python yolov8_cls_trt.py  # Classification
-python yolov8_pose_trt.py  # Pose Estimation
 ```
 
 # INT8 Quantization
