@@ -4,7 +4,7 @@
 
 const static char* kInputTensorName = "images";
 const static char* kOutputTensorName = "output";
-const static int kNumClass = 80;
+const static int kNumClass = 1;
 const static int kNumberOfPoints = 17;  // number of keypoints total
 const static int kBatchSize = 1;
 const static int kGpuId = 0;
@@ -17,9 +17,3 @@ const static int kMaxInputImageSize = 3000 * 3000;
 const static int kMaxNumOutputBbox = 1000;
 //Quantization input image folder path
 const static char* kInputQuantizationFolder = "./coco_calib";
-
-// Classfication model's number of classes
-constexpr static int kClsNumClass = 1000;
-// Classfication model's input shape
-constexpr static int kClsInputH = 224;
-constexpr static int kClsInputW = 224;
