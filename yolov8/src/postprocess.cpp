@@ -1,38 +1,6 @@
 #include "postprocess.h"
 #include "utils.h"
 
-cv::Rect get_rect(cv::Mat& img, float bbox[4]) {
-    float l, r, t, b;
-    float r_w = kInputW / (img.cols * 1.0);
-    float r_h = kInputH / (img.rows * 1.0);
-
-    if (r_h > r_w) {
-        l = bbox[0];
-        r = bbox[2];
-        t = bbox[1] - (kInputH - r_w * img.rows) / 2;
-        b = bbox[3] - (kInputH - r_w * img.rows) / 2;
-        l = l / r_w;
-        r = r / r_w;
-        t = t / r_w;
-        b = b / r_w;
-    } else {
-        l = bbox[0] - (kInputW - r_h * img.cols) / 2;
-        r = bbox[2] - (kInputW - r_h * img.cols) / 2;
-        t = bbox[1];
-        b = bbox[3];
-        l = l / r_h;
-        r = r / r_h;
-        t = t / r_h;
-        b = b / r_h;
-    }
-    l = std::max(0.0f, l);
-    t = std::max(0.0f, t);
-    int width = std::max(0, std::min(int(round(r - l)), img.cols - int(round(l))));
-    int height = std::max(0, std::min(int(round(b - t)), img.rows - int(round(t))));
-
-    return cv::Rect(int(round(l)), int(round(t)), width, height);
-}
-
 cv::Rect get_rect_adapt_landmark(cv::Mat& img, float bbox[4], float lmk[kNumberOfPoints * 3]) {
     float l, r, t, b;
     float r_w = kInputW / (img.cols * 1.0);

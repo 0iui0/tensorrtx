@@ -4,8 +4,6 @@
 #include "NvInfer.h"
 #include "types.h"
 
-cv::Rect get_rect(cv::Mat& img, float bbox[4]);
-
 void nms(std::vector<Detection>& res, float* output, float conf_thresh, float nms_thresh = 0.5);
 
 void draw_bbox_keypoints_line(cv::Mat& img_batch, std::vector<Detection>& res_batch);
