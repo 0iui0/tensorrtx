@@ -118,14 +118,6 @@ void nms(std::vector<Detection>& res, float* output, float conf_thresh, float nm
     }
 }
 
-void batch_nms(std::vector<std::vector<Detection>>& res_batch, float* output, int batch_size, int output_size,
-               float conf_thresh, float nms_thresh) {
-    res_batch.resize(batch_size);
-    for (int i = 0; i < batch_size; i++) {
-        nms(res_batch[i], &output[i * output_size], conf_thresh, nms_thresh);
-    }
-}
-
 void process_decode_ptr_host(std::vector<Detection>& res, const float* decode_ptr_host, int bbox_element, cv::Mat& img,
                              int count) {
     Detection det;
@@ -144,126 +136,33 @@ void process_decode_ptr_host(std::vector<Detection>& res, const float* decode_pt
     }
 }
 
-void batch_process(std::vector<std::vector<Detection>>& res_batch, const float* decode_ptr_host, int batch_size,
-                   int bbox_element, const std::vector<cv::Mat>& img_batch) {
-    res_batch.resize(batch_size);
-    int count = static_cast<int>(*decode_ptr_host);
-    count = std::min(count, kMaxNumOutputBbox);
-    for (int i = 0; i < batch_size; i++) {
-        auto& img = const_cast<cv::Mat&>(img_batch[i]);
-        process_decode_ptr_host(res_batch[i], &decode_ptr_host[i * count], bbox_element, img, count);
-    }
-}
-
-void draw_bbox(std::vector<cv::Mat>& img_batch, std::vector<std::vector<Detection>>& res_batch) {
-    for (size_t i = 0; i < img_batch.size(); i++) {
-        auto& res = res_batch[i];
-        cv::Mat img = img_batch[i];
-        for (size_t j = 0; j < res.size(); j++) {
-            cv::Rect r = get_rect(img, res[j].bbox);
-            cv::rectangle(img, r, cv::Scalar(0x27, 0xC1, 0x36), 2);
-            cv::putText(img, std::to_string((int)res[j].class_id), cv::Point(r.x, r.y - 1), cv::FONT_HERSHEY_PLAIN, 1.2,
-                        cv::Scalar(0xFF, 0xFF, 0xFF), 2);
-        }
-    }
-}
-
-void draw_bbox_keypoints_line(std::vector<cv::Mat>& img_batch, std::vector<std::vector<Detection>>& res_batch) {
+void draw_bbox_keypoints_line(cv::Mat& img, std::vector<Detection>& res) {
     const std::vector<std::pair<int, int>> skeleton_pairs = {
             {0, 1}, {0, 2},  {0, 5}, {0, 6},  {1, 2},   {1, 3},   {2, 4},   {5, 6},   {5, 7},  {5, 11},
             {6, 8}, {6, 12}, {7, 9}, {8, 10}, {11, 12}, {11, 13}, {12, 14}, {13, 15}, {14, 16}};
+    for (size_t j = 0; j < res.size(); j++) {
+        cv::Rect r = get_rect_adapt_landmark(img, res[j].bbox, res[j].keypoints);
+        cv::rectangle(img, r, cv::Scalar(0x27, 0xC1, 0x36), 2);
+        cv::putText(img, std::to_string((int)res[j].class_id), cv::Point(r.x, r.y - 1), cv::FONT_HERSHEY_PLAIN, 1.2,
+                    cv::Scalar(0xFF, 0xFF, 0xFF), 2);
 
-    for (size_t i = 0; i < img_batch.size(); i++) {
-        auto& res = res_batch[i];
-        cv::Mat img = img_batch[i];
-        for (size_t j = 0; j < res.size(); j++) {
-            cv::Rect r = get_rect_adapt_landmark(img, res[j].bbox, res[j].keypoints);
-            cv::rectangle(img, r, cv::Scalar(0x27, 0xC1, 0x36), 2);
-            cv::putText(img, std::to_string((int)res[j].class_id), cv::Point(r.x, r.y - 1), cv::FONT_HERSHEY_PLAIN, 1.2,
-                        cv::Scalar(0xFF, 0xFF, 0xFF), 2);
-
-            for (int k = 0; k < kNumberOfPoints * 3; k += 3) {
-                if (res[j].keypoints[k + 2] > 0.5) {
-                    cv::circle(img, cv::Point((int)res[j].keypoints[k], (int)res[j].keypoints[k + 1]), 3,
-                               cv::Scalar(0, 0x27, 0xC1), -1);
-                }
-            }
-
-            for (const auto& bone : skeleton_pairs) {
-                int kp1_idx = bone.first * 3;
-                int kp2_idx = bone.second * 3;
-                if (res[j].keypoints[kp1_idx + 2] > 0.5 && res[j].keypoints[kp2_idx + 2] > 0.5) {
-                    cv::Point p1((int)res[j].keypoints[kp1_idx], (int)res[j].keypoints[kp1_idx + 1]);
-                    cv::Point p2((int)res[j].keypoints[kp2_idx], (int)res[j].keypoints[kp2_idx + 1]);
-                    cv::line(img, p1, p2, cv::Scalar(0, 0x27, 0xC1), 2);
-                }
-            }
-        }
-    }
-}
-
-cv::Mat scale_mask(cv::Mat mask, cv::Mat img) {
-    int x, y, w, h;
-    float r_w = kInputW / (img.cols * 1.0);
-    float r_h = kInputH / (img.rows * 1.0);
-    if (r_h > r_w) {
-        w = kInputW;
-        h = r_w * img.rows;
-        x = 0;
-        y = (kInputH - h) / 2;
-    } else {
-        w = r_h * img.cols;
-        h = kInputH;
-        x = (kInputW - w) / 2;
-        y = 0;
-    }
-    cv::Rect r(x, y, w, h);
-    cv::Mat res;
-    cv::resize(mask(r), res, img.size());
-    return res;
-}
-
-void draw_mask_bbox(cv::Mat& img, std::vector<Detection>& dets, std::vector<cv::Mat>& masks,
-                    std::unordered_map<int, std::string>& labels_map) {
-    static std::vector<uint32_t> colors = {0xFF3838, 0xFF9D97, 0xFF701F, 0xFFB21D, 0xCFD231, 0x48F90A, 0x92CC17,
-                                           0x3DDB86, 0x1A9334, 0x00D4BB, 0x2C99A8, 0x00C2FF, 0x344593, 0x6473FF,
-                                           0x0018EC, 0x8438FF, 0x520085, 0xCB38FF, 0xFF95C8, 0xFF37C7};
-    for (size_t i = 0; i < dets.size(); i++) {
-        cv::Mat img_mask = scale_mask(masks[i], img);
-        auto color = colors[(int)dets[i].class_id % colors.size()];
-        auto bgr = cv::Scalar(color & 0xFF, color >> 8 & 0xFF, color >> 16 & 0xFF);
-
-        cv::Rect r = get_rect(img, dets[i].bbox);
-        for (int x = r.x; x < r.x + r.width; x++) {
-            for (int y = r.y; y < r.y + r.height; y++) {
-                float val = img_mask.at<float>(y, x);
-                if (val <= 0.5)
-                    continue;
-                img.at<cv::Vec3b>(y, x)[0] = img.at<cv::Vec3b>(y, x)[0] / 2 + bgr[0] / 2;
-                img.at<cv::Vec3b>(y, x)[1] = img.at<cv::Vec3b>(y, x)[1] / 2 + bgr[1] / 2;
-                img.at<cv::Vec3b>(y, x)[2] = img.at<cv::Vec3b>(y, x)[2] / 2 + bgr[2] / 2;
+        for (int k = 0; k < kNumberOfPoints * 3; k += 3) {
+            if (res[j].keypoints[k + 2] > 0.5) {
+                cv::circle(img, cv::Point((int)res[j].keypoints[k], (int)res[j].keypoints[k + 1]), 3,
+                            cv::Scalar(0, 0x27, 0xC1), -1);
             }
         }
 
-        cv::rectangle(img, r, bgr, 2);
-
-        // Get the size of the text
-        cv::Size textSize =
-                cv::getTextSize(labels_map[(int)dets[i].class_id] + " " + to_string_with_precision(dets[i].conf),
-                                cv::FONT_HERSHEY_PLAIN, 1.2, 2, NULL);
-        // Set the top left corner of the rectangle
-        cv::Point topLeft(r.x, r.y - textSize.height);
-
-        // Set the bottom right corner of the rectangle
-        cv::Point bottomRight(r.x + textSize.width, r.y + textSize.height);
-
-        // Set the thickness of the rectangle lines
-        int lineThickness = 2;
-
-        // Draw the rectangle on the image
-        cv::rectangle(img, topLeft, bottomRight, bgr, -1);
-
-        cv::putText(img, labels_map[(int)dets[i].class_id] + " " + to_string_with_precision(dets[i].conf),
-                    cv::Point(r.x, r.y + 4), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar::all(0xFF), 2);
+        for (const auto& bone : skeleton_pairs) {
+            int kp1_idx = bone.first * 3;
+            int kp2_idx = bone.second * 3;
+            if (res[j].keypoints[kp1_idx + 2] > 0.5 && res[j].keypoints[kp2_idx + 2] > 0.5) {
+                cv::Point p1((int)res[j].keypoints[kp1_idx], (int)res[j].keypoints[kp1_idx + 1]);
+                cv::Point p2((int)res[j].keypoints[kp2_idx], (int)res[j].keypoints[kp2_idx + 1]);
+                cv::line(img, p1, p2, cv::Scalar(0, 0x27, 0xC1), 2);
+            }
+        }
     }
+
 }
+

@@ -87,9 +87,6 @@ warpaffine_kernel(uint8_t *src, int src_line_size, int src_width, int src_height
     *pdst_c2 = c2;
 }
 
-
-
-
 void cuda_preprocess(uint8_t *src, int src_width, int src_height, float *dst, int dst_width, int dst_height,
                      cudaStream_t stream) {
     int img_size = src_width * src_height * 3;
@@ -121,22 +118,6 @@ void cuda_preprocess(uint8_t *src, int src_width, int src_height, float *dst, in
             src_height, dst, dst_width,
             dst_height, 128, d2s, jobs);
 }
-
-
-void cuda_batch_preprocess(std::vector<cv::Mat> &img_batch,
-                           float *dst, int dst_width, int dst_height,
-                           cudaStream_t stream) {
-    int dst_size = dst_width * dst_height * 3;
-    for (size_t i = 0; i < img_batch.size(); i++) {
-        cuda_preprocess(img_batch[i].ptr(), img_batch[i].cols, img_batch[i].rows, &dst[dst_size * i], dst_width,
-                        dst_height, stream);
-        CUDA_CHECK(cudaStreamSynchronize(stream));
-    }
-}
-
-
-
-
 
 void cuda_preprocess_init(int max_image_size) {
     // prepare input data in pinned memory
