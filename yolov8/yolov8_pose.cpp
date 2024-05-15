@@ -221,34 +221,26 @@ int main(int argc, char** argv) {
 
     // batch predict
     for (size_t i = 0; i < file_names.size(); i += kBatchSize) {
-        // Get a batch of images
-        std::vector<cv::Mat> img_batch;
-        std::vector<std::string> img_name_batch;
-        for (size_t j = i; j < i + kBatchSize && j < file_names.size(); j++) {
-            cv::Mat img = cv::imread(img_dir + "/" + file_names[j]);
-            img_batch.push_back(img);
-            img_name_batch.push_back(file_names[j]);
-        }
+        // Get a image
+        cv::Mat img_ = cv::imread(img_dir + "/" + file_names[i]);
         // Preprocess
-        cuda_batch_preprocess(img_batch, device_buffers[0], kInputW, kInputH, stream);
+        cuda_preprocess(img_.ptr(), img_.cols, img_.rows, &device_buffers[0][0], kInputW, kInputH, stream);
         // Run inference
-        infer(*context, stream, (void**)device_buffers, output_buffer_host, kBatchSize, decode_ptr_host,
-              decode_ptr_device, model_bboxes, cuda_post_process);
-        std::vector<std::vector<Detection>> res_batch;
+        infer(*context, stream, (void**)device_buffers, output_buffer_host, kBatchSize, decode_ptr_host, decode_ptr_device, model_bboxes, cuda_post_process);
+        std::vector<Detection> res_;
         if (cuda_post_process == "c") {
             // NMS
-            batch_nms(res_batch, output_buffer_host, img_batch.size(), kOutputSize, kConfThresh, kNmsThresh);
+            nms(res_, &output_buffer_host[0], kConfThresh, kNmsThresh);
         } else if (cuda_post_process == "g") {
             // Process gpu decode and nms results
             // todo pose in gpu
             std::cerr << "pose_postprocess is not support in gpu right now" << std::endl;
         }
         // Draw bounding boxes
-        draw_bbox_keypoints_line(img_batch, res_batch);
-        // Save images
-        for (size_t j = 0; j < img_batch.size(); j++) {
-            cv::imwrite("_" + img_name_batch[j], img_batch[j]);
-        }
+        draw_bbox_keypoints_line(img_, res_);
+        // Save image
+        cv::imwrite(img_dir + "/" + "_" + file_names[i], img_);
+
     }
 
     // Release stream and buffers
